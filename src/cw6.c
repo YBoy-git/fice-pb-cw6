@@ -2,8 +2,14 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <math.h>
+#include <string.h>
 
-struct Matrix {
+const double MAX_PRECISION = 1e-15;
+const int MAX_ROWS = 100;
+const int MAX_INPUT = 1 << 10;
+
+struct Matrix
+{
     double **matrix;
     int rows;
 };
@@ -89,7 +95,7 @@ bool isConvergent(const struct Matrix *matrix_s)
         }
         if (fabs(matrix_s->matrix[i][i]) < fabs(sum))
         {
-            printf("Row %d is not convergent\n", i);
+            printf("Row %d is not convergent\n", i + 1);
             return false;
         }
     }
@@ -171,8 +177,148 @@ double *solveLinearSystem(const struct Matrix *matrix_s, double precision)
     return xCurrent;
 }
 
+bool UI_scanInput(char *input, double *row, int maxSize)
+{
+    int count = 0;
+    int n;
+    char *ptr = input;
+
+    while (sscanf(ptr, "%d", &n) == 1)
+    {
+        row[count] = n;
+        count++;
+
+        // Move the pointer to the next integer
+        while (*ptr && (*ptr != ' ' && *ptr != '\n'))
+        {
+            ptr++;
+        }
+
+        // Skip any whitespace
+        while (*ptr == ' ' || *ptr == '\n')
+        {
+            ptr++;
+        }
+    }
+
+    if (count > maxSize)
+    {
+        printf("Too many elements in the row, try again\n");
+        return false;
+    }
+
+    if (count < maxSize)
+    {
+        printf("Too few elements in the row, try again\n");
+        return false;
+    }
+
+    return true;
+}
+
+struct Matrix UI_getMatrix()
+{
+    int rows = 0;
+    char rowsPrompt[70];
+    sprintf(rowsPrompt, "Enter the number of rows (max: %d): ", MAX_ROWS);
+    getInput(&rows, "%d", rowsPrompt);
+    double **matrix = malloc(sizeof(double *) * rows);
+    wasMemoryAllocated(matrix);
+
+    struct Matrix matrix_s = {
+        .matrix = matrix,
+        .rows = rows};
+
+    for (int i = 0; i < rows; i++)
+    {
+        matrix[i] = calloc(rows + 1, sizeof(double));
+        wasMemoryAllocated(matrix[i]);
+    }
+
+    char input[MAX_INPUT];
+    int count = 0;
+    printf("Enter the matrix row by row, each element separated by a space, exactly %d elements in each row\n", rows + 1);
+    do
+    {
+        printf("Row %d: ", count + 1);
+        do
+        {
+            fgets(input, MAX_INPUT, stdin);
+        } while (!UI_scanInput(input, matrix[count], rows + 1));
+
+        count++;
+    } while (input != "\n" && count < rows);
+
+    return matrix_s;
+}
+
+double validatePrecision(double precision)
+{
+    if (precision >= 1.0)
+    {
+        int count = (int)precision;
+        precision = 1.0;
+        while (count > 0)
+        {
+            precision /= 10.0;
+            count--;
+        }
+    }
+    return precision;
+}
+
+bool isPrecisionValid(double precision)
+{
+    if (precision <= 0)
+    {
+        printf("Precision must be positive, try again\n");
+        return false;
+    }
+
+    if (precision < MAX_PRECISION)
+    {
+        printf("Max precision is %e, try again\n", MAX_PRECISION);
+        return false;
+    }
+
+    return true;
+}
+
+void getPrecision(double *precision)
+{
+    do
+    {
+        char message[70];
+        sprintf(message, "Enter the precision (max: %lg): ", MAX_PRECISION);
+        getInput(precision, "%lf", message);
+        *precision = validatePrecision(*precision);
+    } while (!isPrecisionValid(*precision));
+}
+
 void UI()
 {
+    struct Matrix matrix_s = UI_getMatrix();
+    double precision = 0.0;
+    getPrecision(&precision);
+    double *solution = solveLinearSystem(&matrix_s, MAX_PRECISION);
+    if (solution != NULL)
+    {
+        char solutionFormat[25];
+        sprintf(solutionFormat, "%%d: %%.%dlg\n", (int)(-log10(precision)));
+        for (int i = 0; i < matrix_s.rows; i++)
+        {
+            printf(solutionFormat, i + 1, solution[i]);
+        }
+        printf("\n");
+    }
+
+    free(solution);
+    for (int i = 0; i < matrix_s.rows; i++)
+    {
+        free(matrix_s.matrix[i]);
+    }
+    free(matrix_s.matrix);
+
     return;
 }
 
@@ -187,47 +333,8 @@ void endless(void (*function)())
     return;
 }
 
-void test()
-{
-    struct Matrix matrix_s = {
-        .matrix = malloc(sizeof(double *) * 3),
-        .rows = 3};
-
-    double **matrix = matrix_s.matrix;
-    wasMemoryAllocated(matrix);
-    int rows = matrix_s.rows;
-
-    for (int i = 0; i < 3; i++)
-    {
-        matrix[i] = malloc(sizeof(double) * 4);
-        wasMemoryAllocated(matrix[i]);
-    }
-
-    matrix[0][0] = 1; matrix[0][1] = -1; matrix[0][2] = 0; matrix[0][3] = 4;
-    matrix[1][0] = 1; matrix[1][1] = 6; matrix[1][2] = 0; matrix[1][3] = 8;
-    matrix[2][0] = 0.2; matrix[2][1] = 0; matrix[2][2] = 11; matrix[2][3] = 12;
-    double *solution = solveLinearSystem(&matrix_s, 1e-15);
-    if (solution != NULL)
-    {
-        for (int i = 0; i < 3; i++)
-        {
-            printf("%lg ", solution[i]);
-        }
-        printf("\n");
-    }
-
-    for (int i = 0; i < 3; i++)
-    {
-        free(matrix[i]);
-    }
-    free(matrix);
-    free(solution);
-    return;
-}
-
 int main()
 {
-    // endless(UI);
-    test();
+    endless(UI);
     return 0;
 }
