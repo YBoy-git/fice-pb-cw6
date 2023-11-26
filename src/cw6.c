@@ -81,27 +81,6 @@ bool wasMemoryAllocated(void *pointer)
 //     return;
 // }
 
-bool isConvergent(const struct Matrix *matrix_s)
-{
-    for (int i = 0; i < matrix_s->rows; i++)
-    {
-        double sum = 0;
-        for (int j = 0; j < matrix_s->rows; j++)
-        {
-            if (j != i)
-            {
-                sum += matrix_s->matrix[i][j];
-            }
-        }
-        if (fabs(matrix_s->matrix[i][i]) < fabs(sum))
-        {
-            printf("Row %d is not convergent\n", i + 1);
-            return false;
-        }
-    }
-    return true;
-}
-
 void calculateStartX(double *xPrevious, const struct Matrix *matrix_s)
 {
     for (int i = 0; i < matrix_s->rows; i++)
@@ -151,23 +130,22 @@ double maxDelta(double *xCurrent, double *xPrevious, int rows)
     {
         xPrevious[i] = xCurrent[i];
     }
+
     return max;
 }
 
 double *solveLinearSystem(const struct Matrix *matrix_s, double precision)
 {
-    if (!isConvergent(matrix_s))
-    {
-        printf("The matrix is not convergent\n");
-        return NULL;
-    }
-
     double *xPrevious = malloc(sizeof(double) * matrix_s->rows);
     wasMemoryAllocated(xPrevious);
     calculateStartX(xPrevious, matrix_s);
     double *xCurrent = malloc(sizeof(double) * matrix_s->rows);
     wasMemoryAllocated(xCurrent);
 
+    for (int i = 0; i < matrix_s->rows; i++)
+    {
+        printf("x%d = %lg\n", i + 1, xPrevious[i]);
+    }
     do
     {
         calculateNextX(xCurrent, xPrevious, matrix_s);
@@ -177,7 +155,25 @@ double *solveLinearSystem(const struct Matrix *matrix_s, double precision)
     return xCurrent;
 }
 
-bool UI_scanInput(char *input, double *row, int maxSize)
+bool isRowConvergent(double *row, int rowNo, int rowLength)
+{
+        double sum = 0;
+        for (int j = 0; j < rowLength - 1; j++)
+        {
+            if (j != rowNo)
+            {
+                sum += row[j];
+            }
+        }
+        if (fabs(row[rowNo]) < fabs(sum))
+        {
+            printf("Row %d is not convergent\n", rowNo + 1);
+            return false;
+        }
+    return true;
+}
+
+bool UI_scanInput(char *input, double *row, int maxSize, int rowNo)
 {
     int count = 0;
     int n;
@@ -213,11 +209,24 @@ bool UI_scanInput(char *input, double *row, int maxSize)
         return false;
     }
 
+    if (row[rowNo] == 0) 
+    {
+        printf("Zeroes are not allowed on the main diagonal\n");
+        return false;
+    }
+
+    if (!isRowConvergent(row, rowNo, maxSize))
+    {
+        return false;
+    }
+
     return true;
 }
 
 struct Matrix UI_getMatrix()
 {
+    struct Matrix matrix_s;
+
     int rows = 0;
     char rowsPrompt[70];
     sprintf(rowsPrompt, "Enter the number of rows (max: %d): ", MAX_ROWS);
@@ -225,9 +234,8 @@ struct Matrix UI_getMatrix()
     double **matrix = malloc(sizeof(double *) * rows);
     wasMemoryAllocated(matrix);
 
-    struct Matrix matrix_s = {
-        .matrix = matrix,
-        .rows = rows};
+    matrix_s.matrix = matrix;
+    matrix_s.rows = rows;
 
     for (int i = 0; i < rows; i++)
     {
@@ -244,7 +252,7 @@ struct Matrix UI_getMatrix()
         do
         {
             fgets(input, MAX_INPUT, stdin);
-        } while (!UI_scanInput(input, matrix[count], rows + 1));
+        } while (!UI_scanInput(input, matrix[count], rows + 1, count));
 
         count++;
     } while (input != "\n" && count < rows);
