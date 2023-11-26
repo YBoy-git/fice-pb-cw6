@@ -3,6 +3,11 @@
 #include <stdbool.h>
 #include <math.h>
 
+struct Matrix {
+    double **matrix;
+    int rows;
+};
+
 void clearIB()
 {
     while (getchar() != '\n')
@@ -70,19 +75,19 @@ bool wasMemoryAllocated(void *pointer)
 //     return;
 // }
 
-bool isConvergent(double **matrix, int rows, int columns)
+bool isConvergent(const struct Matrix *matrix_s)
 {
-    for (int i = 0; i < rows; i++)
+    for (int i = 0; i < matrix_s->rows; i++)
     {
         double sum = 0;
-        for (int j = 0; j < rows; j++)
+        for (int j = 0; j < matrix_s->rows; j++)
         {
             if (j != i)
             {
-                sum += matrix[i][j];
+                sum += matrix_s->matrix[i][j];
             }
         }
-        if (fabs(matrix[i][i]) < fabs(sum))
+        if (fabs(matrix_s->matrix[i][i]) < fabs(sum))
         {
             printf("Row %d is not convergent\n", i);
             return false;
@@ -91,29 +96,29 @@ bool isConvergent(double **matrix, int rows, int columns)
     return true;
 }
 
-void calculateStartX(double *xPrevious, double **matrix, int rows, int columns)
+void calculateStartX(double *xPrevious, const struct Matrix *matrix_s)
 {
-    for (int i = 0; i < rows; i++)
+    for (int i = 0; i < matrix_s->rows; i++)
     {
-        xPrevious[i] = matrix[i][columns - 1] / matrix[i][i];
+        xPrevious[i] = matrix_s->matrix[i][matrix_s->rows] / matrix_s->matrix[i][i];
     }
 
     return;
 }
 
-void calculateNextX(double *xCurrent, double *xPrevious, double **matrix, int rows, int columns)
+void calculateNextX(double *xCurrent, double *xPrevious, const struct Matrix *matrix_s)
 {
-    for (int i = 0; i < rows; i++)
+    for (int i = 0; i < matrix_s->rows; i++)
     {
         double sum = 0;
-        for (int j = 0; j < columns - 1; j++)
+        for (int j = 0; j < matrix_s->rows; j++)
         {
             if (j != i)
             {
-                sum += matrix[i][j] * xPrevious[j];
+                sum += matrix_s->matrix[i][j] * xPrevious[j];
             }
         }
-        xCurrent[i] = (matrix[i][columns - 1] - sum) / matrix[i][i];
+        xCurrent[i] = (matrix_s->matrix[i][matrix_s->rows] - sum) / matrix_s->matrix[i][i];
     }
 
     return;
@@ -143,30 +148,24 @@ double maxDelta(double *xCurrent, double *xPrevious, int rows)
     return max;
 }
 
-double *solveLinearSystem(double **matrix, int rows, int columns, double precision)
+double *solveLinearSystem(const struct Matrix *matrix_s, double precision)
 {
-    if (columns - 1 != rows)
-    {
-        printf("The number of rows must be equal to the number of columns - 1\n");
-        return NULL;
-    }
-
-    if (!isConvergent(matrix, rows, columns))
+    if (!isConvergent(matrix_s))
     {
         printf("The matrix is not convergent\n");
         return NULL;
     }
 
-    double *xPrevious = malloc(sizeof(double) * rows);
+    double *xPrevious = malloc(sizeof(double) * matrix_s->rows);
     wasMemoryAllocated(xPrevious);
-    calculateStartX(xPrevious, matrix, rows, columns);
-    double *xCurrent = malloc(sizeof(double) * rows);
+    calculateStartX(xPrevious, matrix_s);
+    double *xCurrent = malloc(sizeof(double) * matrix_s->rows);
     wasMemoryAllocated(xCurrent);
 
     do
     {
-        calculateNextX(xCurrent, xPrevious, matrix, rows, columns);
-    } while (maxDelta(xCurrent, xPrevious, rows) > precision);
+        calculateNextX(xCurrent, xPrevious, matrix_s);
+    } while (maxDelta(xCurrent, xPrevious, matrix_s->rows) > precision);
 
     free(xPrevious);
     return xCurrent;
@@ -190,8 +189,14 @@ void endless(void (*function)())
 
 void test()
 {
-    double **matrix = malloc(sizeof(double *) * 3);
+    struct Matrix matrix_s = {
+        .matrix = malloc(sizeof(double *) * 3),
+        .rows = 3};
+
+    double **matrix = matrix_s.matrix;
     wasMemoryAllocated(matrix);
+    int rows = matrix_s.rows;
+
     for (int i = 0; i < 3; i++)
     {
         matrix[i] = malloc(sizeof(double) * 4);
@@ -201,7 +206,7 @@ void test()
     matrix[0][0] = 1; matrix[0][1] = -1; matrix[0][2] = 0; matrix[0][3] = 4;
     matrix[1][0] = 1; matrix[1][1] = 6; matrix[1][2] = 0; matrix[1][3] = 8;
     matrix[2][0] = 0.2; matrix[2][1] = 0; matrix[2][2] = 11; matrix[2][3] = 12;
-    double *solution = solveLinearSystem(matrix, 3, 4, 1e-15);
+    double *solution = solveLinearSystem(&matrix_s, 1e-15);
     if (solution != NULL)
     {
         for (int i = 0; i < 3; i++)
